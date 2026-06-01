@@ -276,7 +276,7 @@ elif valittu_sivu == "Valmennukset":
                 st.success("Tallennettu pilveen!")
                 st.rerun()
             else: st.error("Valitse pelaajat ja klubi.")
-    with sarake2:
+        with sarake2:
         st.subheader("📋 Suoritetut valmennukset & Raportit")
         valmennukset_data = suorita_sql("SELECT * FROM valmennukset ORDER BY paivamaara DESC")
         df_v = pd.DataFrame(valmennukset_data)
@@ -321,21 +321,18 @@ elif valittu_sivu == "Valmennukset":
                         tot_saanti = 0.0
                         for th in str(rivi_nyt["pelaajahinta"]).split(","):
                             if ":" in th:
-                                try: tot_saanti += float(th.split(":")[1].replace("€", "").strip())
+                                try: tot_saanti += float(th.split(":").replace("€", "").strip())
                                 except: pass
                         uusi_kenttakulu = float(rivi_nyt["kenttakulu_yhteensa"])
                         suorita_sql("UPDATE valmennukset SET pelaajatulot_yhteensa = %s, oma_tulos = %s WHERE id = %s", (tot_saanti, tot_saanti - uusi_kenttakulu, t_id), commit=True)
                     paivita_valikot()
-                    st.columns(1)[0].success("Päivitetty pilveen!")
                     st.rerun()
             
-                       else:
-                # KORJATTU LASKENTALOGIIKKA PELAAJAKOHTAISELLE KOSTEELLE
+            else:
                 kooste_data = {}
                 for _, rivi in df_v.iterrows():
                     hintahaku_str = str(rivi.get("pelaajahinta", ""))
                     if hintahaku_str:
-                        # Käydään läpi jokainen pelaaja: hinta -pari (esim. "Matti: 22.50€")
                         for osa in hintahaku_str.split(","):
                             if ":" in osa:
                                 try:
@@ -353,30 +350,27 @@ elif valittu_sivu == "Valmennukset":
                 
                 if kooste_data:
                     df_kooste = pd.DataFrame.from_dict(kooste_data, orient='index').reset_index().rename(columns={"index": "Pelaajan nimi"})
-                    
-                    # Näytetään siisti taulukko sovelluksessa
                     st.dataframe(df_kooste, use_container_width=True, hide_index=True, column_config={
                         "Yhteenlaskettu valmennusmaksu (€)": st.column_config.NumberColumn("Maksut yhteensä", format="%.2f €"),
                         "Treenikerrat": st.column_config.NumberColumn("Treenikerrat (Kpl)", format="%d")
                     })
-                    
-                    # Tehdään Exceliin (CSV) vietävä tiedosto
                     csv_k = df_kooste.to_csv(index=False, sep=";", encoding="utf-8-sig")
                     st.download_button("📥 Vie laskutuskooste Exceliin (CSV)", csv_k, f"laskutuskooste_{alku_pvm}_to_{loppu_pvm}.csv", "text/csv", use_container_width=True)
                 else:
                     st.info("Ei tunnistettuja pelaajahintoja tällä aikavälillä.")
-
             
             st.markdown("---")
             st.subheader("🗑️ Poista valmennus listalta")
-            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist(), index=None, placeholder="Valitse...")
+            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist() if not df_v.empty else [], index=None, placeholder="Valitse...")
             if poistettava_v:
                 v_id = int(poistettava_v.split(" | ")[0].replace("ID ", ""))
                 if st.button("Kyllä, poista valmennus", type="primary", use_container_width=True):
                     suorita_sql("DELETE FROM valmennukset WHERE id = %s", (v_id,), commit=True)
                     paivita_valikot()
                     st.rerun()
-        else: st.info("Ei valmennuksia valitulla aikavälillä.")
+        else:
+            st.info("Ei valmennuksia valitulla aikavälillä.")
+
 elif valittu_sivu == "Asiakasrekisteri":
     st.title("👥 Asiakasrekisteri (Pilviversio)")
     s1, s2 = st.columns(2)
