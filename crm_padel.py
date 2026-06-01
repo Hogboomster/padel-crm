@@ -1,7 +1,7 @@
 import sys
 from types import ModuleType
 
-# 1. PYTHON 3.14 VALEMODUULIT (Estetään pyiceberg-kaatuminen)
+# 1. PYTHON 3.14 VALEMODUULIT
 if 'pyiceberg' not in sys.modules:
     mock_iceberg = ModuleType('pyiceberg')
     mock_catalog = ModuleType('pyiceberg.catalog')
@@ -33,18 +33,10 @@ if not st.session_state.get("authenticated"):
             st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
 
-# --- SUPABASE CONFIGURAATIO ---
-if "secrets" in st.secrets and "SUPABASE_URL" in st.secrets["secrets"]:
-    RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
-else:
-    RAW_URL = "https://supabase.co"
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
-
-# Siistitään osoite kaikista mahdollisista vinoviivoista ja rest-liitteistä automaattisesti
-PUHDAS_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
-# Hitsataan pomminvarma, puhdas rajapintapolku, jota KAIKKI sivut käyttävät
-API_URL = f"{PUHDAS_URL}/rest/v1"
+# --- PAKOTETUT OSOITTEET ---
+# Otetaan osoitteet suoraan tästä, jotta Advanced Settings ei voi sotkea mitään
+API_URL = "https://supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
 
 HEADERS = {
     "apikey": SUPABASE_KEY,
