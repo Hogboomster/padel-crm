@@ -37,7 +37,23 @@ if not st.session_state.get("authenticated"):
 # --- VAIHE 2: NEON-PILVITIETOKANTAYHTEYS ---
 DB_URL = "postgresql://neondb_owner:npg_VEYCQ0B2qAab@ep-small-smoke-abp783s2-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-# Vakaa ja pomminvarma globaali SQL-työkalu, jota KAIKKI sivut ja haut käyttävät
+# OPTIMOITU JA NOPEUTETTU TIETOKANTAMOOTTORI
+# Lisätään Streamlitin välimuisti vain tiedon lukemiseen (Haut muuttuvat välittömiksi)
+@st.cache_data(ttl=60)
+def hae_listat_pilvesta(query):
+    data = []
+    try:
+        conn = psycopg2.connect(DB_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(query)
+        data = cursor.fetchall()
+        cursor.close()
+        conn.close()
+    except Exception as ex:
+        st.error(f"⚠️ Tietokantavirhe: {ex}")
+    return data
+
+# Kirjoitusoperaatiot (INSERT/UPDATE/DELETE) ajetaan aina livenä ilman välimuistia
 def suorita_sql(query, params=(), commit=False):
     data = []
     try:
@@ -53,15 +69,14 @@ def suorita_sql(query, params=(), commit=False):
     except Exception as ex:
         st.error(f"⚠️ Tietokantavirhe: {ex}")
     return data
-# LISÄÄ TÄMÄ FUNKTIO TÄHÄN KOHTAAN (suorita_sql-funktion alapuolelle)
+
 def paivita_valikot():
     st.cache_data.clear()
 
 def kuluva_kuukausi_valit():
     tana_an = date.today()
-    eka_paiva = date(tana_an.year, tana_an.month, 1)
     res_tuple = calendar.monthrange(tana_an.year, tana_an.month)
-    paivien_maara = int(res_tuple[1]) # Poimitaan tuplen toinen arvo integerinä
+    paivien_maara = int(res_tuple[1])
     vika_paiva = date(tana_an.year, tana_an.month, paivien_maara)
     return eka_paiva, vika_paiva
 
@@ -76,16 +91,17 @@ def laske_kesto(aika_str):
     except: return 0
     return 0
 
-# Haetaan valikkolistat lennosta puhtaalla SQL:llä
+# Haetaan valikkolistat muistiin salamannopeasti välimuistin kautta
 try:
-    kaikki_pelaajat = [p["nimi"] for p in suorita_sql("SELECT nimi FROM valmennettavat ORDER BY nimi ASC")]
+    kaikki_pelaajat = [p["nimi"] for p in hae_listat_pilvesta("SELECT nimi FROM valmennettavat ORDER BY nimi ASC")]
 except: kaikki_pelaajat = []
 
 try:
-    kaikki_klubit = [k["nimi"] for k in suorita_sql("SELECT nimi FROM klubit ORDER BY nimi ASC")]
+    kaikki_klubit = [k["nimi"] for k in hae_listat_pilvesta("SELECT nimi FROM klubit ORDER BY nimi ASC")]
 except: kaikki_klubit = []
 
 st.set_page_config(page_title="Padel CRM Pilvi", layout="wide", page_icon="🎾")
+
 st.sidebar.title("🎾 Padel-CRM")
 if st.sidebar.button("🔒 Kirjaudu ulos"):
     st.session_state["authenticated"] = False
