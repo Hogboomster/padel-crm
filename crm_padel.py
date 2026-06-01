@@ -584,7 +584,7 @@ elif valittu_sivu == "Kulut":
                 st.markdown("---")
                 poistettava_kulu = st.selectbox("Poista kulu listalta:", df_omat_kulut.apply(lambda r: f"ID {r['id']} | {r['selite']} | {r['summa']}€", axis=1).tolist(), index=None)
                 if poistettava_kulu and st.button("Vahvista kulun poisto", type="primary", use_container_width=True):
-                    k_id = int(poistettava_kulu.split(" | ").replace("ID ", ""))
+                    k_id = int(poistettava_kulu.replace("ID ", "").split(" | ")[0])
                     suorita_sql("DELETE FROM manuaaliset_kulut WHERE id = %s", (k_id,), commit=True)
                     st.rerun()
             else: st.info("Ei muita kuluja tällä aikavälillä.")
