@@ -329,28 +329,43 @@ elif valittu_sivu == "Valmennukset":
                     st.columns(1)[0].success("Päivitetty pilveen!")
                     st.rerun()
             
-            else:
+                       else:
+                # KORJATTU LASKENTALOGIIKKA PELAAJAKOHTAISELLE KOSTEELLE
                 kooste_data = {}
                 for _, rivi in df_v.iterrows():
-                    for osa in str(rivi.get("pelaajahinta", "")).split(","):
-                        if ":" in osa and "€" in osa:
-                            try:
-                                p_nimi = osa.split(":")[0].strip()
-                                p_hinta = float(osa.split(":")[1].replace("€", "").strip())
-                                if p_nimi not in kooste_data:
-                                    kooste_data[p_nimi] = {"Treenikerrat": 0, "Yhteenlaskettu valmennusmaksu (€)": 0.0}
-                                kooste_data[p_nimi]["Treenikerrat"] += 1
-                                kooste_data[p_nimi]["Yhteenlaskettu valmennusmaksu (€)"] += p_hinta
-                            except: pass
+                    hintahaku_str = str(rivi.get("pelaajahinta", ""))
+                    if hintahaku_str:
+                        # Käydään läpi jokainen pelaaja: hinta -pari (esim. "Matti: 22.50€")
+                        for osa in hintahaku_str.split(","):
+                            if ":" in osa:
+                                try:
+                                    p_nimi = osa.split(":")[0].strip()
+                                    hinta_raaka = osa.split(":")[1].replace("€", "").replace(" ", "").strip()
+                                    p_hinta = float(hinta_raaka) if hinta_raaka else 0.0
+                                    
+                                    if p_nimi not in kooste_data:
+                                        kooste_data[p_nimi] = {"Treenikerrat": 0, "Yhteenlaskettu valmennusmaksu (€)": 0.0}
+                                    
+                                    kooste_data[p_nimi]["Treenikerrat"] += 1
+                                    kooste_data[p_nimi]["Yhteenlaskettu valmennusmaksu (€)"] += p_hinta
+                                except:
+                                    pass
                 
                 if kooste_data:
                     df_kooste = pd.DataFrame.from_dict(kooste_data, orient='index').reset_index().rename(columns={"index": "Pelaajan nimi"})
+                    
+                    # Näytetään siisti taulukko sovelluksessa
                     st.dataframe(df_kooste, use_container_width=True, hide_index=True, column_config={
-                        "Yhteenlaskettu valmennusmaksu (€)": st.column_config.NumberColumn("Maksut yhteensä", format="%.2f €")
+                        "Yhteenlaskettu valmennusmaksu (€)": st.column_config.NumberColumn("Maksut yhteensä", format="%.2f €"),
+                        "Treenikerrat": st.column_config.NumberColumn("Treenikerrat (Kpl)", format="%d")
                     })
+                    
+                    # Tehdään Exceliin (CSV) vietävä tiedosto
                     csv_k = df_kooste.to_csv(index=False, sep=";", encoding="utf-8-sig")
                     st.download_button("📥 Vie laskutuskooste Exceliin (CSV)", csv_k, f"laskutuskooste_{alku_pvm}_to_{loppu_pvm}.csv", "text/csv", use_container_width=True)
-                else: st.info("Ei tunnistettuja pelaajahintoja tällä aikavälillä.")
+                else:
+                    st.info("Ei tunnistettuja pelaajahintoja tällä aikavälillä.")
+
             
             st.markdown("---")
             st.subheader("🗑️ Poista valmennus listalta")
