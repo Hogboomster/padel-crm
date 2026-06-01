@@ -528,7 +528,7 @@ elif valittu_sivu == "Tulot":
                 st.markdown("---")
                 poistettava_tulo = st.selectbox("Poista tulo listalta:", df_tulot.apply(lambda r: f"ID {r['id']} | {r['maksaja']} | {r['summa']}€", axis=1).tolist(), index=None)
                 if poistettava_tulo and st.button("Vahvista tulon poisto", type="primary", use_container_width=True):
-                    t_id = int(poistettava_tulo.split(" | ").replace("ID ", ""))
+                    t_id = int(poistettava_tulo.replace("ID ", "").split(" | ")[0])
                     suorita_sql("DELETE FROM manuaaliset_tulot WHERE id = %s", (t_id,), commit=True)
                     st.rerun()
             else: st.info("Ei erillisiä toteutuneita tuloja tällä aikavälillä.")
