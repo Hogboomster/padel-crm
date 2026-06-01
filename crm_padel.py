@@ -1,7 +1,7 @@
 import sys
 from types import ModuleType
 
-# 1. PYTHON 3.14 VALEMODUULIT (Estetään pyiceberg-kaatuminen)
+# 1. PYTHON 3.14 VALEMODUULIT
 if 'pyiceberg' not in sys.modules:
     mock_iceberg = ModuleType('pyiceberg')
     mock_catalog = ModuleType('pyiceberg.catalog')
@@ -17,9 +17,10 @@ import streamlit as st
 from datetime import datetime, date
 import calendar
 import plotly.express as px
-import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-# --- SALASANASUOJAUS ---
+# --- VAIHE 1: SALASANASUOJAUS ---
 if not st.session_state.get("authenticated"):
     st.title("🔒 Padel CRM - Kirjaudu sisään")
     kayttajatunnus = st.text_input("Käyttäjätunnus")
@@ -33,31 +34,32 @@ if not st.session_state.get("authenticated"):
             st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
 
-# --- SUPABASE CONFIGURAATIO ---
-# Käytetään ensin Advanced Settings -salaisuuksia, muuten varakoodeja
-RAW_URL = "https://supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
+# --- VAIHE 2: NEON-PILVITIETOKANTAYHTEYS ---
+# Käytetään antamaasi suoraan osoitetta
+DB_URL = "postgresql://neondb_owner:npg_VEYCQ0B2qAab@ep-small-smoke-abp783s2-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-if "secrets" in st.secrets and "secrets" in st.secrets["secrets"]:
-    RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
-
-# Puhdistetaan osoite takaviivoista ja hitsataan yhtenäinen rajapintapolku
-PUHDAS_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
-API_URL = f"{PUHDAS_URL}/rest/v1"
-
-HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation"
-}
+# Pomminvarmat aputyökalut SQL-kyselyiden ajamiseen pilvessä
+def suorita_sql(query, params=(), commit=False):
+    data = []
+    try:
+        conn = psycopg2.connect(DB_URL)
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(query, params)
+        if commit:
+            conn.commit()
+        else:
+            data = cursor.fetchall()
+        cursor.close()
+        conn.close()
+    except Exception as ex:
+        st.error(f"Tietokantavirhe: {ex}")
+    return data
 
 def kuluva_kuukausi_valit():
     tana_an = date.today()
     eka_paiva = date(tana_an.year, tana_an.month, 1)
     res_tuple = calendar.monthrange(tana_an.year, tana_an.month)
-    paivien_maara = int(res_tuple[1]) # Poimitaan varmasti pelkkä päivien määrä numerona
+    paivien_maara = int(res_tuple[1])
     vika_paiva = date(tana_an.year, tana_an.month, paivien_maara)
     return eka_paiva, vika_paiva
 
@@ -72,21 +74,14 @@ def laske_kesto(aika_str):
     except: return 0
     return 0
 
-@st.cache_data(ttl=60)
-def hae_pilvestä(taulu_nimi, parametri_str=""):
-    try:
-        url = f"{API_URL}/{taulu_nimi}{parametri_str}"
-        vastaus = requests.get(url, headers=HEADERS)
-        if vastaus.status_code == 200:
-            return vastaus.json()
-    except: pass
-    return []
+# Haetaan listat muistiin lennosta standardilla SQL:llä
+try:
+    kaikki_pelaajat = [p["nimi"] for p in suorita_sql("SELECT nimi FROM valmennettavat ORDER BY nimi ASC")]
+except: kaikki_pelaajat = []
 
-def paivita_valikot():
-    st.cache_data.clear()
-
-kaikki_pelaajat = [p["nimi"] for p in hae_pilvestä("valmennettavat", "?select=nimi&order=nimi.asc")]
-kaikki_klubit = [k["nimi"] for k in hae_pilvestä("klubit", "?select=nimi&order=nimi.asc")]
+try:
+    kaikki_klubit = [k["nimi"] for k in suorita_sql("SELECT nimi FROM klubit ORDER BY nimi ASC")]
+except: kaikki_klubit = []
 
 st.set_page_config(page_title="Padel CRM Pilvi", layout="wide", page_icon="🎾")
 st.sidebar.title("🎾 Padel-CRM")
@@ -95,6 +90,7 @@ if st.sidebar.button("🔒 Kirjaudu ulos"):
     st.rerun()
 
 valittu_sivu = st.sidebar.radio("Navigointi:", ["Etusivu", "Valmennukset", "Asiakasrekisteri", "Klubit", "Tulot", "Kulut"])
+
 if valittu_sivu == "Etusivu":
     st.title("🏠 Ohjausnäkymä - Etusivu")
     
