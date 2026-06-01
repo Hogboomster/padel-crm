@@ -34,16 +34,17 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # --- VAIHE 2: SUPABASE CONFIGURAATIO ---
-if "secrets" in st.secrets:
-    RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
-else:
-    RAW_URL = "https://supabase.co"
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
+# Pakotetaan oikeat avaimet ja puhdas URL suoraan käyttöön, jos secrets kenkkuilee
+RAW_URL = "https://supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
 
-# Puhdistetaan osoite kaikista takaviivoista ja rest-liitteistä
+if "secrets" in st.secrets and "SUPABASE_URL" in st.secrets["secrets"]:
+    RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
+if "secrets" in st.secrets and "SUPABASE_KEY" in st.secrets["secrets"]:
+    SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
+
+# Varmistetaan että osoitteen loppuun tulee tasan tarkkaan oikea polku
 PUHDAS_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
-# Rakennetaan täydellinen, pomminvarma rajapintaosoite
 API_URL = f"{PUHDAS_URL}/rest/v1"
 
 HEADERS = {
@@ -56,7 +57,7 @@ HEADERS = {
 def kuluva_kuukausi_valit():
     tana_an = date.today()
     eka_paiva = date(tana_an.year, tana_an.month, 1)
-    paivien_maara = calendar.monthrange(tana_an.year, tana_an.month)[1]
+    paivien_maara = calendar.monthrange(tana_an.year, tana_an.month)[1] # KORJATTU INDEKSI: poimitaan vain päivien määrä tuplesta
     vika_paiva = date(tana_an.year, tana_an.month, paivien_maara)
     return eka_paiva, vika_paiva
 
@@ -94,6 +95,7 @@ if st.sidebar.button("🔒 Kirjaudu ulos"):
     st.rerun()
 
 valittu_sivu = st.sidebar.radio("Navigointi:", ["Etusivu", "Valmennukset", "Asiakasrekisteri", "Klubit", "Tulot", "Kulut"])
+
 if valittu_sivu == "Etusivu":
     st.title("🏠 Ohjausnäkymä - Etusivu")
     
