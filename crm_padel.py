@@ -34,15 +34,14 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # --- SUPABASE CONFIGURAATIO ---
-# Luetaan avaimet ensin Advanced Settings -laatikosta, muuten käytetään varakoodeja
-RAW_URL = "https://supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
-
 if "secrets" in st.secrets and "secrets" in st.secrets["secrets"]:
     RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
+else:
+    RAW_URL = "https://supabase.co"
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
 
-# Puhdistetaan osoite takaviivoista ja hitsataan pomminvarma rajapintapolku, jota KAIKKI sivut käyttävät
+# Siistitään osoite kaikista vinoviivoista ja rest-liitteistä automaattisesti
 PUHDAS_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
 API_URL = f"{PUHDAS_URL}/rest/v1"
 
@@ -343,7 +342,7 @@ elif valittu_sivu == "Valmennukset":
             
             st.markdown("---")
             st.subheader("🗑️ Poista valmennus listalta")
-            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist() if not df_v.empty else [], index=None, placeholder="Valitse...")
+            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist(), index=None, placeholder="Valitse...")
             if poistettava_v:
                 v_id = int(poistettava_v.split(" | ")[0].replace("ID ", ""))
                 if st.button("Kyllä, poista valmennus", type="primary", use_container_width=True):
