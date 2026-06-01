@@ -34,14 +34,15 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # --- SUPABASE CONFIGURAATIO ---
+# Käytetään ensin Advanced Settings -salaisuuksia, muuten varakoodeja
+RAW_URL = "https://supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
+
 if "secrets" in st.secrets and "secrets" in st.secrets["secrets"]:
     RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
-else:
-    RAW_URL = "https://supabase.co"
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
 
-# Siistitään osoite kaikista vinoviivoista ja rest-liitteistä automaattisesti
+# Puhdistetaan osoite takaviivoista ja hitsataan yhtenäinen rajapintapolku
 PUHDAS_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
 API_URL = f"{PUHDAS_URL}/rest/v1"
 
@@ -56,7 +57,7 @@ def kuluva_kuukausi_valit():
     tana_an = date.today()
     eka_paiva = date(tana_an.year, tana_an.month, 1)
     res_tuple = calendar.monthrange(tana_an.year, tana_an.month)
-    paivien_maara = int(res_tuple[1]) # Poimitaan varmasti pelkkä päivien lukumäärä numerona
+    paivien_maara = int(res_tuple[1]) # Poimitaan varmasti pelkkä päivien määrä numerona
     vika_paiva = date(tana_an.year, tana_an.month, paivien_maara)
     return eka_paiva, vika_paiva
 
@@ -342,7 +343,7 @@ elif valittu_sivu == "Valmennukset":
             
             st.markdown("---")
             st.subheader("🗑️ Poista valmennus listalta")
-            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist(), index=None, placeholder="Valitse...")
+            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist() if not df_v.empty else [], index=None, placeholder="Valitse...")
             if poistettava_v:
                 v_id = int(poistettava_v.split(" | ")[0].replace("ID ", ""))
                 if st.button("Kyllä, poista valmennus", type="primary", use_container_width=True):
