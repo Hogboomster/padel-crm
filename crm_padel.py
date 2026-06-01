@@ -53,6 +53,9 @@ def suorita_sql(query, params=(), commit=False):
     except Exception as ex:
         st.error(f"⚠️ Tietokantavirhe: {ex}")
     return data
+# LISÄÄ TÄMÄ FUNKTIO TÄHÄN KOHTAAN (suorita_sql-funktion alapuolelle)
+def paivita_valikot():
+    st.cache_data.clear()
 
 def kuluva_kuukausi_valit():
     tana_an = date.today()
