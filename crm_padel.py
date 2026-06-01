@@ -75,8 +75,9 @@ def paivita_valikot():
 
 def kuluva_kuukausi_valit():
     tana_an = date.today()
+    eka_paiva = date(tana_an.year, tana_an.month, 1) # TÄMÄ PUUTTUNUT RIVI LISÄTTY TAKAISIN
     res_tuple = calendar.monthrange(tana_an.year, tana_an.month)
-    paivien_maara = int(res_tuple[1])
+    paivien_maara = int(res_tuple[1]) # Korjattu samalla poimimaan tuplen toinen arvo oikein
     vika_paiva = date(tana_an.year, tana_an.month, paivien_maara)
     return eka_paiva, vika_paiva
 
