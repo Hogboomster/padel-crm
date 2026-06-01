@@ -276,7 +276,7 @@ elif valittu_sivu == "Valmennukset":
                 st.success("Tallennettu pilveen!")
                 st.rerun()
             else: st.error("Valitse pelaajat ja klubi.")
-        with sarake2:
+            with sarake2:
         st.subheader("📋 Suoritetut valmennukset & Raportit")
         valmennukset_data = suorita_sql("SELECT * FROM valmennukset ORDER BY paivamaara DESC")
         df_v = pd.DataFrame(valmennukset_data)
@@ -321,7 +321,7 @@ elif valittu_sivu == "Valmennukset":
                         tot_saanti = 0.0
                         for th in str(rivi_nyt["pelaajahinta"]).split(","):
                             if ":" in th:
-                                try: tot_saanti += float(th.split(":").replace("€", "").strip())
+                                try: tot_saanti += float(th.split(":")[1].replace("€", "").strip())
                                 except: pass
                         uusi_kenttakulu = float(rivi_nyt["kenttakulu_yhteensa"])
                         suorita_sql("UPDATE valmennukset SET pelaajatulot_yhteensa = %s, oma_tulos = %s WHERE id = %s", (tot_saanti, tot_saanti - uusi_kenttakulu, t_id), commit=True)
@@ -363,7 +363,7 @@ elif valittu_sivu == "Valmennukset":
             st.subheader("🗑️ Poista valmennus listalta")
             poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist() if not df_v.empty else [], index=None, placeholder="Valitse...")
             if poistettava_v:
-                v_id = int(poistettava_v.split(" | ")[0].replace("ID ", ""))
+                v_id = int(poistettava_v.split(" | ").replace("ID ", ""))
                 if st.button("Kyllä, poista valmennus", type="primary", use_container_width=True):
                     suorita_sql("DELETE FROM valmennukset WHERE id = %s", (v_id,), commit=True)
                     paivita_valikot()
