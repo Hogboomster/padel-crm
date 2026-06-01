@@ -26,7 +26,8 @@ if not st.session_state.get("authenticated"):
     kayttajatunnus = st.text_input("Käyttäjätunnus")
     salasana = st.text_input("Salasana", type="password")
     if st.button("Kirjaudu sisään", use_container_width=True):
-        if kayttajatunnus == "admin" and salasana == "padel2026":
+        # Luetaan kirjautumistiedot turvallisesti Streamlitin salaisuuksista
+        if "secrets" in st.secrets and kayttajatunnus == st.secrets["secrets"]["ADMIN_USER"] and salasana == st.secrets["secrets"]["ADMIN_PASSWORD"]:
             st.session_state["authenticated"] = True
             st.success("Kirjautuminen onnistui!")
             st.rerun()
@@ -35,7 +36,11 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # --- VAIHE 2: NEON-PILVITIETOKANTAYHTEYS ---
-DB_URL = "postgresql://neondb_owner:npg_VEYCQ0B2qAab@ep-small-smoke-abp783s2-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+# Osoitetta ei ole enää koodissa! Se luetaan suoraan share.streamlitin laatikosta.
+if "secrets" in st.secrets:
+    DB_URL = st.secrets["secrets"]["DATABASE_URL"]
+else:
+    DB_URL = "postgresql://localhost/padel"
 
 # OPTIMOITU JA NOPEUTETTU TIETOKANTAMOOTTORI
 # Lisätään Streamlitin välimuisti vain tiedon lukemiseen (Haut muuttuvat välittömiksi)
