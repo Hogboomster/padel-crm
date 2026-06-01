@@ -489,11 +489,13 @@ elif valittu_sivu == "Klubit":
                         suorita_sql(f"UPDATE klubit SET {sarake} = %s WHERE id = %s", (uusi_arvo, t_id), commit=True)
                 paivita_valikot()
                 st.rerun()
+                       # KORJATTU KLUBIN POISTOLOHKO
             p_klubi = st.selectbox("Poista klubi:", df_k["nimi"].tolist(), index=None)
-            if p_klubi and st.button("Vahvista klubin poisto"):
+            if p_klubi and st.button("Vahvista klubin poisto", use_container_width=True):
                 suorita_sql("DELETE FROM klubit WHERE nimi = %s", (p_klubi,), commit=True)
-                paivita_valikot()
-                st.rerun()
+                paivita_valikot()  # Tyhjennetään välimuisti lennosta
+                st.success(f"Klubi {p_klubi} poistettu onnistuneesti!")
+                st.rerun()  # Pakotetaan sivu päivittymään heti
 elif valittu_sivu == "Tulot":
     st.title("💰 Tulojen seuranta (Toteutuneet maksut)")
     t_alku, t_loppu = kuluva_kuukausi_valit()
