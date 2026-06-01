@@ -94,13 +94,16 @@ def laske_kesto(aika_str):
     except: return 0
     return 0
 
+# KORJATTU TÄYSIN: Kirjoitusvirheet poistettu (ä -> a), jotta haut toimivat
 try:
-    kaikki_pelaajat = [p["nimi"] for p in hae_listat_pilvestä("SELECT nimi FROM valmennettavat ORDER BY nimi ASC")]
-except: kaikki_pelaajat = []
+    kaikki_pelaajat = [p["nimi"] for p in hae_listat_pilvesta("SELECT nimi FROM valmennettavat ORDER BY nimi ASC")]
+except: 
+    kaikki_pelaajat = []
 
 try:
-    kaikki_klubit = [k["nimi"] for k in hae_listat_pilvestä("SELECT nimi FROM klubit ORDER BY nimi ASC")]
-except: kaikki_klubit = []
+    kaikki_klubit = [k["nimi"] for k in hae_listat_pilvesta("SELECT nimi FROM klubit ORDER BY nimi ASC")]
+except: 
+    kaikki_klubit = []
 
 st.set_page_config(page_title="Padel CRM Pilvi", layout="wide", page_icon="🎾")
 st.sidebar.title("🎾 Padel-CRM")
@@ -109,6 +112,7 @@ if st.sidebar.button("🔒 Kirjaudu ulos"):
     st.rerun()
 
 valittu_sivu = st.sidebar.radio("Navigointi:", ["Etusivu", "Valmennukset", "Asiakasrekisteri", "Klubit", "Tulot", "Kulut"])
+
 if valittu_sivu == "Etusivu":
     st.title("🏠 Ohjausnäkymä - Etusivu")
     
