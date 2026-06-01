@@ -1,7 +1,7 @@
 import sys
 from types import ModuleType
 
-# Huijataan pyiceberg-analytiikkavirheet pois Python 3.14:ssä
+# 1. PYTHON 3.14 VALEMODUULIT
 if 'pyiceberg' not in sys.modules:
     mock_iceberg = ModuleType('pyiceberg')
     mock_catalog = ModuleType('pyiceberg.catalog')
@@ -17,15 +17,13 @@ import streamlit as st
 from datetime import datetime, date
 import calendar
 import plotly.express as px
-import requests  # Käytetään standardia ja vakaata verkkopyyntökirjastoa tiedonsiirtoon
+import requests
 
 # --- VAIHE 1: SALASANASUOJAUS ---
 if not st.session_state.get("authenticated"):
     st.title("🔒 Padel CRM - Kirjaudu sisään")
-    
     kayttajatunnus = st.text_input("Käyttäjätunnus")
     salasana = st.text_input("Salasana", type="password")
-    
     if st.button("Kirjaudu sisään", use_container_width=True):
         if kayttajatunnus == "admin" and salasana == "padel2026":
             st.session_state["authenticated"] = True
@@ -35,21 +33,19 @@ if not st.session_state.get("authenticated"):
             st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
 
-# --- VAIHE 2: SUPABASE-PILVIYHTEYDEN CONFIGURAATIO ---
-# Luetaan avaimet turvallisesti Streamlit Cloudin Advanced Settings (Secrets) -laatikosta
+# --- VAIHE 2: SUPABASE CONFIGURAATIO ---
 if "secrets" in st.secrets:
     RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
 else:
-    # Jos ajat koodia paikallisesti koneella, käytetään näitä varalla
     RAW_URL = "https://supabase.co"
     SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
 
-# POMMINVARMA OSOITTEEN SIISTIMINEN:
-# Poistetaan mahdolliset vino- ja takaviivat sekä rest/v1-päätteet, jotta pohja on aina puhdas
-SUPABASE_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
+# Puhdistetaan osoite kaikista takaviivoista ja rest-liitteistä
+PUHDAS_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
+# Rakennetaan täydellinen, pomminvarma rajapintaosoite
+API_URL = f"{PUHDAS_URL}/rest/v1"
 
-# Suojatut otsikkotiedot pilviasiointia varten
 HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -75,27 +71,23 @@ def laske_kesto(aika_str):
     except: return 0
     return 0
 
-# Pakotetaan tiedonhakuun aina täydellinen, puhdas polku
+@st.cache_data(ttl=60)
 def hae_pilvestä(taulu_nimi, parametri_str=""):
     try:
-        url = f"{SUPABASE_URL}/rest/v1/{taulu_nimi}{parametri_str}"
+        url = f"{API_URL}/{taulu_nimi}{parametri_str}"
         vastaus = requests.get(url, headers=HEADERS)
         if vastaus.status_code == 200:
             return vastaus.json()
     except: pass
     return []
 
-# Haetaan listat muistiin salamannopeasti
-kaikki_pelaajat = [p["nimi"] for p in hae_pilvestä("valmennettavat", "?select=nimi&order=nimi.asc")]
-kaikki_klubit = [k["nimi"] for k in hae_pilvestä("klubit", "?select=nimi&order=nimi.asc")]
-
-# UUSI APUTYÖKALU: Tyhjentää välimuistin aina kun teet uusia lisäyksiä
 def paivita_valikot():
     st.cache_data.clear()
 
+kaikki_pelaajat = [p["nimi"] for p in hae_pilvestä("valmennettavat", "?select=nimi&order=nimi.asc")]
+kaikki_klubit = [k["nimi"] for k in hae_pilvestä("klubit", "?select=nimi&order=nimi.asc")]
+
 st.set_page_config(page_title="Padel CRM Pilvi", layout="wide", page_icon="🎾")
-
-
 st.sidebar.title("🎾 Padel-CRM")
 if st.sidebar.button("🔒 Kirjaudu ulos"):
     st.session_state["authenticated"] = False
@@ -105,7 +97,6 @@ valittu_sivu = st.sidebar.radio("Navigointi:", ["Etusivu", "Valmennukset", "Asia
 if valittu_sivu == "Etusivu":
     st.title("🏠 Ohjausnäkymä - Etusivu")
     
-    # Haetaan tiedot suorilla, puhtailla HTTPS-pyynnöillä ilman bugittavia välikirjastoja
     tulot_data = hae_pilvestä("manuaaliset_tulot")
     valmennukset_data = hae_pilvestä("valmennukset")
     
@@ -178,7 +169,6 @@ if valittu_sivu == "Etusivu":
                 st.dataframe(df_suodatettu_t[["maksupvm", "maksaja", "summa", "maksutapa"]], use_container_width=True, hide_index=True)
         else: 
             st.info("Ei toteutuneita maksuja järjestelmässä valitulla välillä.")
-
 elif valittu_sivu == "Valmennukset":
     st.title("📅 Valmennusten hallinta")
     sarake1, sarake2 = st.columns(2)
@@ -205,16 +195,16 @@ elif valittu_sivu == "Valmennukset":
         oletettu_kenttahinta_tunti = 0.0
         if v_klubi:
             try:
-                klubi_data = supabase.table("klubit").select("paivahinta, primehinta, vklppuhinta").eq("nimi", v_klubi).execute()
-                if klubi_data.data:
-                    hinnat_db = klubi_data.data[0]
+                klubi_data = hae_pilvestä("klubit", f"?nimi=eq.{v_klubi}")
+                if klubi_data:
+                    hinnat_db = klubi_data[0]
                     alku_tunti = int(alku_valinta.split(":")[0])
                     if viikonpaiva >= 5:
-                        oletettu_kenttahinta_tunti = float(hinnat_db["vklppuhinta"])
+                        oletettu_kenttahinta_tunti = float(hinnat_db.get("vklppuhinta", 0))
                     elif alku_tunti >= 16:
-                        oletettu_kenttahinta_tunti = float(hinnat_db["primehinta"])
+                        oletettu_kenttahinta_tunti = float(hinnat_db.get("primehinta", 0))
                     else:
-                        oletettu_kenttahinta_tunti = float(hinnat_db["paivahinta"])
+                        oletettu_kenttahinta_tunti = float(hinnat_db.get("paivahinta", 0))
             except: pass
 
         v_kenttahinta_tunti = st.number_input("Kenttähinta (€ / h)", min_value=0.0, step=0.5, value=oletettu_kenttahinta_tunti)
@@ -222,8 +212,8 @@ elif valittu_sivu == "Valmennukset":
         passilaisten_nimet = []
         if v_pelaajat:
             try:
-                passilaiset_res = supabase.table("valmennettavat").select("nimi").eq("on_kenttapassi", 1).lte("passi_alku", pvm_str).gte("passi_loppu", pvm_str).execute()
-                passilaisten_nimet = [p["nimi"] for p in passilaiset_res.data if p["nimi"] in v_pelaajat]
+                passilaiset_res = hae_pilvestä("valmennettavat", f"?on_kenttapassi=eq.1&passi_alku=lte.{pvm_str}&passi_loppu=gte.{pvm_str}")
+                passilaisten_nimet = [p["nimi"] for p in passilaiset_res if p["nimi"] in v_pelaajat]
             except: pass
         
         alennuskerroin = max(0.0, 1.0 - (len(passilaisten_nimet) * 0.25))
@@ -267,18 +257,17 @@ elif valittu_sivu == "Valmennukset":
                     "pelaajatulot_yhteensa": float(v_pelaajatulot_yhteensa), "oma_tulos": float(v_oma_tulos),
                     "pelaajahinta": pelaajahinnat_str, "tuuraustiedot": tuuraustiedot_str, "alennuksen_saajat": alennuksen_saajat_str
                 }
-                try:
-                    supabase.table("valmennukset").insert(uusi_valmennus).execute()
+                url = f"{API_URL}/valmennukset"
+                vastaus = requests.post(url, headers=HEADERS, json=uusi_valmennus)
+                if vastaus.status_code in [200, 201]:
                     st.success("Tallennettu pilveen!")
                     st.rerun()
-                except Exception as ex: st.error(f"Tallennus epäonnistui: {ex}")
+                else: st.error(f"Tallennus epäonnistui: {vastaus.text}")
             else: st.error("Valitse pelaajat ja klubi.")
     with sarake2:
         st.subheader("📋 Suoritetut valmennukset & Raportit")
-        try:
-            res_v = supabase.table("valmennukset").select("*").order("paivamaara", ascending=False).execute()
-            df_v = pd.DataFrame(res_v.data)
-        except: df_v = pd.DataFrame()
+        valmennukset_data = hae_pilvestä("valmennukset", "?order=paivamaara.desc")
+        df_v = pd.DataFrame(valmennukset_data)
         
         if not df_v.empty:
             st.markdown("##### 🔍 Suodata aikavälillä")
@@ -315,21 +304,23 @@ elif valittu_sivu == "Valmennukset":
                         
                         for sarake, uusi_arvo in muutokset.items():
                             rivi_nyt[sarake] = uusi_arvo
-                            supabase.table("valmennukset").update({sarake: uusi_arvo}).eq("id", t_id).execute()
+                            url = f"{API_URL}/valmennukset?id=eq.{t_id}"
+                            requests.patch(url, headers=HEADERS, json={sarake: uusi_arvo})
                             
                         tot_saanti = 0.0
-                        for th in rivi_nyt["pelaajahinta"].split(","):
+                        for th in str(rivi_nyt["pelaajahinta"]).split(","):
                             if ":" in th:
                                 try: tot_saanti += float(th.split(":")[1].replace("€", "").strip())
                                 except: pass
                         uusi_kenttakulu = float(rivi_nyt["kenttakulu_yhteensa"])
-                        supabase.table("valmennukset").update({"pelaajatulot_yhteensa": tot_saanti, "oma_tulos": tot_saanti - uusi_kenttakulu}).eq("id", t_id).execute()
+                        url = f"{API_URL}/valmennukset?id=eq.{t_id}"
+                        requests.patch(url, headers=HEADERS, json={"pelaajatulot_yhteensa": tot_saanti, "oma_tulos": tot_saanti - uusi_kenttakulu})
                     st.rerun()
             
             else:
                 kooste_data = {}
                 for _, rivi in df_v.iterrows():
-                    for osa in rivi["pelaajahinta"].split(","):
+                    for osa in str(rivi.get("pelaajahinta", "")).split(","):
                         if ":" in osa and "€" in osa:
                             try:
                                 p_nimi = osa.split(":")[0].strip()
@@ -351,19 +342,17 @@ elif valittu_sivu == "Valmennukset":
             
             st.markdown("---")
             st.subheader("🗑️ Poista valmennus listalta")
-            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist() if not df_v.empty else [], index=None, placeholder="Valitse...")
+            poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist(), index=None, placeholder="Valitse...")
             if poistettava_v:
                 v_id = int(poistettava_v.split(" | ")[0].replace("ID ", ""))
                 if st.button("Kyllä, poista valmennus", type="primary", use_container_width=True):
-                    try:
-                        supabase.table("valmennukset").delete().eq("id", v_id).execute()
-                        st.rerun()
-                    except: st.error("Poisto epäonnistui.")
+                    url = f"{API_URL}/valmennukset?id=eq.{v_id}"
+                    requests.delete(url, headers=HEADERS)
+                    st.rerun()
         else: st.info("Ei valmennuksia valitulla aikavälillä.")
-elif valittu_sivu == "Asiakasrekisteri":
+elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
     st.title("👥 Asiakasrekisteri (Pilviversio)")
     s1, s2 = st.columns(2)
-    
     with s1:
         st.subheader("➕ Lisää uusi asiakas & Kenttäpassi")
         n = st.text_input("Nimi")
@@ -388,16 +377,14 @@ elif valittu_sivu == "Asiakasrekisteri":
                     "nimi": n, "puhelin": p, "sahkoposti": e, "kommentit": k, 
                     "on_kenttapassi": 1 if k_passi else 0, "passi_alku": p_alku, "passi_loppu": p_loppu
                 }
-                url = f"{SUPABASE_URL}/rest/v1/valmennettavat"
+                url = f"{API_URL}/valmennettavat"
                 vastaus = requests.post(url, headers=HEADERS, json=uusi_asiakas)
                 if vastaus.status_code in [200, 201]:
-                    paivita_valikot()  # Tyhjennetään nopea välimuisti lennosta
+                    paivita_valikot()
                     st.success(f"Pelaaja {n} tallennettu onnistuneesti pilveen!")
                     st.rerun()
-                else:
-                    st.error(f"Tallennus epäonnistui: {vastaus.text}")
-            else:
-                st.error("Anna vähintään pelaajan nimi.")
+                else: st.error(f"Tallennus epäonnistui: {vastaus.text}")
+            else: st.error("Anna vähintään pelaajan nimi.")
         
         st.markdown("---")
         st.subheader("🔍 Pelaajan kuukausikohtainen historia")
@@ -413,50 +400,43 @@ elif valittu_sivu == "Asiakasrekisteri":
             df_kaikki_v["pvm_dt"] = pd.to_datetime(df_kaikki_v["paivamaara"]).dt.date
             df_suodatettu = df_kaikki_v[(df_kaikki_v["pvm_dt"] >= historia_alku) & (df_kaikki_v["pvm_dt"] <= historia_loppu)]
             pelaajan_tunnit, pelaajan_kokonaissumma = [], 0.0
-            
             for _, r_v in df_suodatettu.iterrows():
                 if valittu_haku_pelaaja in str(r_v.get("pelaajat", "")) or valittu_haku_pelaaja in str(r_v.get("tuuraustiedot", "")):
                     for osa in str(r_v.get("pelaajahinta", "")).split(","):
                         if valittu_haku_pelaaja in osa and ":" in osa:
                             try:
-                                h_luku = float(osa.split(":")[1].replace("€", "").strip())
+                                h_luku = float(osa.split(":").replace("€", "").strip())
                                 pelaajan_kokonaissumma += h_luku
                             except: pass
                     pelaajan_tunnit.append({"Päivä": r_v.get("paivamaara"), "Aika": r_v.get("aika"), "Klubi": r_v.get("klubi")})
-                    
             if pelaajan_tunnit:
                 st.metric(f"{valittu_haku_pelaaja} - Maksut yhteensä", f"{pelaajan_kokonaissumma:.2f} €")
                 st.dataframe(pd.DataFrame(pelaajan_tunnit), use_container_width=True, hide_index=True)
-            else:
-                st.info("Ei tunteja tällä aikavälillä.")
+            else: st.info("Ei tunteja tällä aikavälillä.")
             
     with s2:
         st.subheader("📝 Muokkaa ja poista asiakkaita")
         asiakkaat_data = hae_pilvestä("valmennettavat")
         df_a = pd.DataFrame(asiakkaat_data)
-        
         if not df_a.empty:
             df_a = df_a[["id", "nimi", "puhelin", "sahkoposti", "kommentit", "on_kenttapassi", "passi_alku", "passi_loppu"]]
             paivitetyt_asiakkaat = st.data_editor(df_a, use_container_width=True, hide_index=True, column_config={"id": None}, key="a_editor")
-            
             if st.session_state.a_editor["edited_rows"]:
                 for r_idx, muutokset in st.session_state.a_editor["edited_rows"].items():
                     t_id = int(df_a.iloc[r_idx]["id"])
-                    url = f"{SUPABASE_URL}/rest/v1/valmennettavat?id=eq.{t_id}"
+                    url = f"{API_URL}/valmennettavat?id=eq.{t_id}"
                     requests.patch(url, headers=HEADERS, json=muutokset)
                 paivita_valikot()
                 st.success("Muutokset päivitetty pilveen!")
                 st.rerun()
-                
             p_pelaaja = st.selectbox("Valitse poistettava pelaaja:", df_a["nimi"].tolist(), index=None, placeholder="Valitse nimi...")
             if p_pelaaja and st.button("Vahvista poisto pysyvästi", type="primary", use_container_width=True):
-                url = f"{SUPABASE_URL}/rest/v1/valmennettavat?nimi=eq.{p_pelaaja}"
+                url = f"{API_URL}/valmennettavat?nimi=eq.{p_pelaaja}"
                 requests.delete(url, headers=HEADERS)
                 paivita_valikot()
-                st.success(f"Pelaaja {p_pelaaja} poistettu tietokannasta!")
                 st.rerun()
-        else:
-            st.info("Asiakasrekisteri on vielä tyhjä. Lisää ensimmäinen pelaaja vasemmalta.")
+        else: st.info("Asiakasrekisteri on vielä tyhjä.")
+
 elif valittu_sivu == "Klubit":
     st.title("🏢 Klubit")
     s1, s2 = st.columns(2)
@@ -468,28 +448,31 @@ elif valittu_sivu == "Klubit":
         kv = st.number_input("VklppuHinta (€)", min_value=0.0)
         if st.button("Tallenna klubi", use_container_width=True) and kn:
             uusi_k = {"nimi": kn, "paivahinta": kp, "primehinta": km, "vklppuhinta": kv}
-            try:
-                supabase.table("klubit").insert(uusi_k).execute()
+            url = f"{API_URL}/klubit"
+            vastaus = requests.post(url, headers=HEADERS, json=uusi_k)
+            if vastaus.status_code in [200, 201]:
+                paivita_valikot()
                 st.rerun()
-            except Exception as ex: st.error(f"Virhe: {ex}")
+            else: st.error(f"Virhe: {vastaus.text}")
     with s2:
         st.subheader("📝 Selaa klubeja")
-        try:
-            res_k = supabase.table("klubit").select("*").execute()
-            df_k = pd.DataFrame(res_k.data)
-        except: df_k = pd.DataFrame()
-        
+        klubit_data = hae_pilvestä("klubit")
+        df_k = pd.DataFrame(klubit_data)
         if not df_k.empty:
+            df_k = df_k[["id", "nimi", "paivahinta", "primehinta", "vklppuhinta"]]
             paivitetyt_klubit = st.data_editor(df_k, use_container_width=True, hide_index=True, column_config={"id": None}, key="k_editor")
             if st.session_state.k_editor["edited_rows"]:
                 for r_idx, muutokset in st.session_state.k_editor["edited_rows"].items():
                     t_id = int(df_k.iloc[r_idx]["id"])
-                    for sarake, uusi_arvo in muutokset.items():
-                        supabase.table("klubit").update({sarake: uusi_arvo}).eq("id", t_id).execute()
+                    url = f"{API_URL}/klubit?id=eq.{t_id}"
+                    requests.patch(url, headers=HEADERS, json=muutokset)
+                paivita_valikot()
                 st.rerun()
             p_klubi = st.selectbox("Poista klubi:", df_k["nimi"].tolist(), index=None)
             if p_klubi and st.button("Vahvista klubin poisto", type="primary"):
-                supabase.table("klubit").delete().eq("nimi", p_klubi).execute()
+                url = f"{API_URL}/klubit?nimi=eq.{p_klubi}"
+                requests.delete(url, headers=HEADERS)
+                paivita_valikot()
                 st.rerun()
 elif valittu_sivu == "Tulot":
     st.title("💰 Tulojen seuranta (Toteutuneet maksut)")
@@ -498,11 +481,7 @@ elif valittu_sivu == "Tulot":
     if isinstance(tulojen_aikavali, (list, tuple)) and len(tulojen_aikavali) == 2:
         alku_pvm, loppu_pvm = tulojen_aikavali
         alku_s, loppu_s = alku_pvm.strftime("%Y-%m-%d"), loppu_pvm.strftime("%Y-%m-%d")
-        
-        try:
-            res_t = supabase.table("manuaaliset_tulot").select("*").filter("maksupvm", "gte", alku_s).filter("maksupvm", "lte", loppu_s).execute()
-            df_tulot = pd.DataFrame(res_t.data)
-        except: df_tulot = pd.DataFrame()
+        df_tulot = pd.DataFrame(hae_pilvestä("manuaaliset_tulot", f"?maksupvm=gte.{alku_s}&maksupvm=lte.{loppu_s}"))
         
         s1, s2 = st.columns(2)
         with s1:
@@ -514,23 +493,26 @@ elif valittu_sivu == "Tulot":
             if st.button("Tallenna tulo", use_container_width=True) and t_maksaja:
                 pvm_t_str = t_pvm.strftime("%Y-%m-%d")
                 uusi_tulo = {"maksaja": t_maksaja, "maksupvm": pvm_t_str, "summa": float(t_summa), "maksutapa": t_tapa}
-                supabase.table("manuaaliset_tulot").insert(uusi_tulo).execute()
-                st.success("Tulo kirjattu!"); st.rerun()
+                url = f"{API_URL}/manuaaliset_tulot"
+                requests.post(url, headers=HEADERS, json=uusi_tulo)
+                st.success("Tulo kirjattu onnistuneesti!"); st.rerun()
         with s2:
             st.subheader("📝 Selaa ja muokkaa toteutuneita tuloja")
             if not df_tulot.empty:
+                df_tulot = df_tulot[["id", "maksupvm", "maksaja", "summa", "maksutapa"]]
                 paivitetyt_tulot = st.data_editor(df_tulot, use_container_width=True, hide_index=True, column_config={"id": None, "maksupvm": "Päivä", "summa": st.column_config.NumberColumn("Summa", format="%.2f €")}, key="tulot_editor")
                 if st.session_state.tulot_editor["edited_rows"]:
                     for r_idx, muutokset in st.session_state.tulot_editor["edited_rows"].items():
                         t_id = int(df_tulot.iloc[r_idx]["id"])
-                        for sarake, uusi_arvo in muutokset.items():
-                            supabase.table("manuaaliset_tulot").update({sarake: uusi_arvo}).eq("id", t_id).execute()
+                        url = f"{API_URL}/manuaaliset_tulot?id=eq.{t_id}"
+                        requests.patch(url, headers=HEADERS, json=muutokset)
                     st.rerun()
                 st.markdown("---")
                 poistettava_tulo = st.selectbox("Poista tulo listalta:", df_tulot.apply(lambda r: f"ID {r['id']} | {r['maksaja']} | {r['summa']}€", axis=1).tolist(), index=None)
                 if poistettava_tulo and st.button("Vahvista tulon poisto", type="primary", use_container_width=True):
                     t_id = int(poistettava_tulo.split(" | ").replace("ID ", ""))
-                    supabase.table("manuaaliset_tulot").delete().eq("id", t_id).execute()
+                    url = f"{API_URL}/manuaaliset_tulot?id=eq.{t_id}"
+                    requests.delete(url, headers=HEADERS)
                     st.rerun()
             else: st.info("Ei erillisiä toteutuneita tuloja tällä aikavälillä.")
 
@@ -541,16 +523,9 @@ elif valittu_sivu == "Kulut":
     if isinstance(kulujen_aikavali, (list, tuple)) and len(kulujen_aikavali) == 2:
         alku_pvm, loppu_pvm = kulujen_aikavali
         alku_s, loppu_s = alku_pvm.strftime("%Y-%m-%d"), loppu_pvm.strftime("%Y-%m-%d")
+        df_valmennuskulut = pd.DataFrame(hae_pilvestä("valmennukset", f"?select=paivamaara,aika,klubi,kenttakulu_yhteensa,alennuksen_saajat&paivamaara=gte.{alku_s}&paivamaara=lte.{loppu_s}"))
+        df_omat_kulut = pd.DataFrame(hae_pilvestä("manuaaliset_kulut", f"?paivamaara=gte.{alku_s}&paivamaara=lte.{loppu_s}"))
         
-        try:
-            res_vk = supabase.table("valmennukset").select("paivamaara, aika, klubi, kenttakulu_yhteensa, alennuksen_saajat").filter("paivamaara", "gte", alku_s).filter("paivamaara", "lte", loppu_s).execute()
-            df_valmennuskulut = pd.DataFrame(res_vk.data)
-            res_ok = supabase.table("manuaaliset_kulut").select("*").filter("paivamaara", "gte", alku_s).filter("paivamaara", "lte", loppu_s).execute()
-            df_omat_kulut = pd.DataFrame(res_ok.data)
-        except:
-            df_valmennuskulut = pd.DataFrame()
-            df_omat_kulut = pd.DataFrame()
-            
         kokonais_kenttakulut = df_valmennuskulut["kenttakulu_yhteensa"].sum() if not df_valmennuskulut.empty else 0.0
         st.markdown("### 🏛️ Automaattinen kooste")
         st.info(f"📊 **Kaikki klubit / Kenttävuokrat yhteensä aikavälillä:** {kokonais_kenttakulut:.2f} €")
@@ -573,22 +548,25 @@ elif valittu_sivu == "Kulut":
             if st.button("Tallenna kulu", use_container_width=True) and k_selite:
                 pvm_k_str = k_pvm.strftime("%Y-%m-%d")
                 uusi_kulu = {"paivamaara": pvm_k_str, "selite": k_selite, "kategoria": k_kat, "summa": float(k_summa)}
-                supabase.table("manuaaliset_kulut").insert(uusi_kulu).execute()
+                url = f"{API_URL}/manuaaliset_kulut"
+                requests.post(url, headers=HEADERS, json=uusi_kulu)
                 st.success("Kulu tallennettu!"); st.rerun()
         with s2:
             st.subheader("📝 Selaa ja muokkaa muita kuluja")
             if not df_omat_kulut.empty:
-                paivitetyt_kulut = st.data_editor(df_omat_kulut, use_container_width=True, hide_index=True, column_config={"id": None, "paivamaara": "Päivä", "selite": "Kuvaus", "summa": st.column_config.NumberColumn("Summa (€)", format="%.2f €")}, key="k_editor")
+                df_omat_kulut = df_omat_kulut[["id", "paivamaara", "selite", "kategoria", "summa"]]
+                paivitetyt_kulut = st.data_editor(df_omat_kulut, use_container_width=True, hide_index=True, column_config={"id": None, "paivamaara": "Päivä", "summa": st.column_config.NumberColumn("Summa (€)", format="%.2f €")}, key="k_editor")
                 if st.session_state.k_editor["edited_rows"]:
                     for r_idx, muutokset in st.session_state.k_editor["edited_rows"].items():
                         t_id = int(df_omat_kulut.iloc[r_idx]["id"])
-                        for sarake, uusi_arvo in muutokset.items():
-                            supabase.table("manuaaliset_kulut").update({sarake: uusi_arvo}).eq("id", t_id).execute()
+                        url = f"{API_URL}/manuaaliset_kulut?id=eq.{t_id}"
+                        requests.patch(url, headers=HEADERS, json=muutokset)
                     st.rerun()
                 st.markdown("---")
                 poistettava_kulu = st.selectbox("Poista kulu listalta:", df_omat_kulut.apply(lambda r: f"ID {r['id']} | {r['selite']} | {r['summa']}€", axis=1).tolist(), index=None)
                 if poistettava_kulu and st.button("Vahvista kulun poisto", type="primary", use_container_width=True):
                     k_id = int(poistettava_kulu.split(" | ").replace("ID ", ""))
-                    supabase.table("manuaaliset_kulut").delete().eq("id", k_id).execute()
+                    url = f"{API_URL}/manuaaliset_kulut?id=eq.{k_id}"
+                    requests.delete(url, headers=HEADERS)
                     st.rerun()
             else: st.info("Ei muita kuluja tällä aikavälillä.")
