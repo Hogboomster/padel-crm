@@ -450,11 +450,13 @@ elif valittu_sivu == "Asiakasrekisteri":
                 st.success("Muutokset päivitetty pilveen!")
                 st.rerun()
                 
+                        # KORJATTU ASIAKKAAN POISTOLOHKO
             p_pelaaja = st.selectbox("Valitse poistettava pelaaja:", df_a["nimi"].tolist(), index=None, placeholder="Valitse nimi...")
             if p_pelaaja and st.button("Vahvista poisto pysyvästi", use_container_width=True):
                 suorita_sql("DELETE FROM valmennettavat WHERE nimi = %s", (p_pelaaja,), commit=True)
-                paivita_valikot()
-                st.rerun()
+                paivita_valikot() # Tyhjennetään nopea välimuisti lennosta
+                st.success(f"Pelaaja {p_pelaaja} poistettu onnistuneesti pilvestä!")
+                st.rerun() # Pakotetaan sivu päivittymään heti ruudulle
         else:
             st.info("Asiakasregisteri on vielä tyhjä. Lisää ensimmäinen pelaaja vasemmalta.")
 
