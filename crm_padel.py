@@ -371,7 +371,7 @@ elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
                 p_alku = st.date_input("Alku", date.today()).strftime("%Y-%m-%d")
                 p_loppu = st.date_input("Loppu", date.today()).strftime("%Y-%m-%d")
                 
-        if st.button("Tallenna pelaaja", use_container_width=True):
+                if st.button("Tallenna pelaaja", use_container_width=True):
             if n:
                 uusi_asiakas = {
                     "nimi": n, "puhelin": p, "sahkoposti": e, "kommentit": k, 
@@ -379,12 +379,16 @@ elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
                 }
                 url = f"{API_URL}/valmennettavat"
                 vastaus = requests.post(url, headers=HEADERS, json=uusi_asiakas)
-                if vastaus.status_code in [200, 201]:
-                    paivita_valikot()
+                
+                # KORJATTU KOHTA: Tarkistetaan oikea HTTP-statuskoodi 201 (Luotu)
+                if vastaus.status_code == 201:
+                    paivita_valikot()  # Tyhjennetään nopea välimuisti lennosta
                     st.success(f"Pelaaja {n} tallennettu onnistuneesti pilveen!")
                     st.rerun()
-                else: st.error(f"Tallennus epäonnistui: {vastaus.text}")
-            else: st.error("Anna vähintään pelaajan nimi.")
+                else:
+                    st.error(f"Tallennus epäonnistui: {vastaus.text}")
+            else:
+                st.error("Anna vähintään pelaajan nimi.")
         
         st.markdown("---")
         st.subheader("🔍 Pelaajan kuukausikohtainen historia")
@@ -446,14 +450,18 @@ elif valittu_sivu == "Klubit":
         kp = st.number_input("Päivähinta (€)", min_value=0.0)
         km = st.number_input("PrimeHinta (€)", min_value=0.0)
         kv = st.number_input("VklppuHinta (€)", min_value=0.0)
-        if st.button("Tallenna klubi", use_container_width=True) and kn:
+               if st.button("Tallenna klubi", use_container_width=True) and kn:
             uusi_k = {"nimi": kn, "paivahinta": kp, "primehinta": km, "vklppuhinta": kv}
             url = f"{API_URL}/klubit"
             vastaus = requests.post(url, headers=HEADERS, json=uusi_k)
-            if vastaus.status_code in [200, 201]:
+            
+            # KORJATTU KOHTA: Tarkistetaan oikea HTTP-statuskoodi 201
+            if vastaus.status_code == 201:
                 paivita_valikot()
+                st.success(f"Klubi {kn} tallennettu onnistuneesti!")
                 st.rerun()
-            else: st.error(f"Virhe: {vastaus.text}")
+            else: 
+                st.error(f"Virhe: {vastaus.text}")
     with s2:
         st.subheader("📝 Selaa klubeja")
         klubit_data = hae_pilvestä("klubit")
