@@ -26,7 +26,6 @@ if not st.session_state.get("authenticated"):
     kayttajatunnus = st.text_input("Käyttäjätunnus")
     salasana = st.text_input("Salasana", type="password")
     if st.button("Kirjaudu sisään", use_container_width=True):
-        # Luetaan kirjautumistiedot turvallisesti Streamlitin salaisuuksista
         if "secrets" in st.secrets and kayttajatunnus == st.secrets["secrets"]["ADMIN_USER"] and salasana == st.secrets["secrets"]["ADMIN_PASSWORD"]:
             st.session_state["authenticated"] = True
             st.success("Kirjautuminen onnistui!")
@@ -36,14 +35,12 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # --- VAIHE 2: NEON-PILVITIETOKANTAYHTEYS ---
-# Osoitetta ei ole enää koodissa! Se luetaan suoraan share.streamlitin laatikosta.
 if "secrets" in st.secrets:
     DB_URL = st.secrets["secrets"]["DATABASE_URL"]
 else:
     DB_URL = "postgresql://localhost/padel"
 
-# OPTIMOITU JA NOPEUTETTU TIETOKANTAMOOTTORI
-# Lisätään Streamlitin välimuisti vain tiedon lukemiseen (Haut muuttuvat välittömiksi)
+# Optimoitu haku välimuistilla sivunvaihtojen nopeuttamiseen
 @st.cache_data(ttl=60)
 def hae_listat_pilvesta(query):
     data = []
@@ -55,10 +52,10 @@ def hae_listat_pilvesta(query):
         cursor.close()
         conn.close()
     except Exception as ex:
-        st.error(f"⚠️ Tietokantavirhe: {ex}")
+        st.error(f"⚠️ Tietokantavirhe listauksessa: {ex}")
     return data
 
-# Kirjoitusoperaatiot (INSERT/UPDATE/DELETE) ajetaan aina livenä ilman välimuistia
+# Kirjoitusoperaatiot (INSERT/UPDATE/DELETE) suorana pilveen
 def suorita_sql(query, params=(), commit=False):
     data = []
     try:
@@ -72,7 +69,7 @@ def suorita_sql(query, params=(), commit=False):
         cursor.close()
         conn.close()
     except Exception as ex:
-        st.error(f"⚠️ Tietokantavirhe: {ex}")
+        st.error(f"⚠️ Tietokantavirhe operaatiossa: {ex}")
     return data
 
 def paivita_valikot():
@@ -80,9 +77,9 @@ def paivita_valikot():
 
 def kuluva_kuukausi_valit():
     tana_an = date.today()
-    eka_paiva = date(tana_an.year, tana_an.month, 1) # TÄMÄ PUUTTUNUT RIVI LISÄTTY TAKAISIN
+    eka_paiva = date(tana_an.year, tana_an.month, 1)
     res_tuple = calendar.monthrange(tana_an.year, tana_an.month)
-    paivien_maara = int(res_tuple[1]) # Korjattu samalla poimimaan tuplen toinen arvo oikein
+    paivien_maara = int(res_tuple[1])
     vika_paiva = date(tana_an.year, tana_an.month, paivien_maara)
     return eka_paiva, vika_paiva
 
@@ -97,17 +94,15 @@ def laske_kesto(aika_str):
     except: return 0
     return 0
 
-# Haetaan valikkolistat muistiin salamannopeasti välimuistin kautta
 try:
-    kaikki_pelaajat = [p["nimi"] for p in hae_listat_pilvesta("SELECT nimi FROM valmennettavat ORDER BY nimi ASC")]
+    kaikki_pelaajat = [p["nimi"] for p in hae_listat_pilvestä("SELECT nimi FROM valmennettavat ORDER BY nimi ASC")]
 except: kaikki_pelaajat = []
 
 try:
-    kaikki_klubit = [k["nimi"] for k in hae_listat_pilvesta("SELECT nimi FROM klubit ORDER BY nimi ASC")]
+    kaikki_klubit = [k["nimi"] for k in hae_listat_pilvestä("SELECT nimi FROM klubit ORDER BY nimi ASC")]
 except: kaikki_klubit = []
 
 st.set_page_config(page_title="Padel CRM Pilvi", layout="wide", page_icon="🎾")
-
 st.sidebar.title("🎾 Padel-CRM")
 if st.sidebar.button("🔒 Kirjaudu ulos"):
     st.session_state["authenticated"] = False
@@ -276,7 +271,7 @@ elif valittu_sivu == "Valmennukset":
                 st.success("Tallennettu pilveen!")
                 st.rerun()
             else: st.error("Valitse pelaajat ja klubi.")
-            with sarake2:
+    with sarake2:
         st.subheader("📋 Suoritetut valmennukset & Raportit")
         valmennukset_data = suorita_sql("SELECT * FROM valmennukset ORDER BY paivamaara DESC")
         df_v = pd.DataFrame(valmennukset_data)
@@ -321,7 +316,9 @@ elif valittu_sivu == "Valmennukset":
                         tot_saanti = 0.0
                         for th in str(rivi_nyt["pelaajahinta"]).split(","):
                             if ":" in th:
-                                try: tot_saanti += float(th.split(":")[1].replace("€", "").strip())
+                                try:
+                                    hinta_raaka = th.split(":")[1].replace("€", "").replace(" ", "").strip()
+                                    tot_saanti += float(hinta_raaka) if hinta_raaka else 0.0
                                 except: pass
                         uusi_kenttakulu = float(rivi_nyt["kenttakulu_yhteensa"])
                         suorita_sql("UPDATE valmennukset SET pelaajatulot_yhteensa = %s, oma_tulos = %s WHERE id = %s", (tot_saanti, tot_saanti - uusi_kenttakulu, t_id), commit=True)
@@ -345,8 +342,7 @@ elif valittu_sivu == "Valmennukset":
                                     
                                     kooste_data[p_nimi]["Treenikerrat"] += 1
                                     kooste_data[p_nimi]["Yhteenlaskettu valmennusmaksu (€)"] += p_hinta
-                                except:
-                                    pass
+                                except: pass
                 
                 if kooste_data:
                     df_kooste = pd.DataFrame.from_dict(kooste_data, orient='index').reset_index().rename(columns={"index": "Pelaajan nimi"})
@@ -363,14 +359,13 @@ elif valittu_sivu == "Valmennukset":
             st.subheader("🗑️ Poista valmennus listalta")
             poistettava_v = st.selectbox("Valitse poistettava valmennuskerta:", df_v.apply(lambda r: f"ID {r['id']} | {r['paivamaara']} | {r['klubi']}", axis=1).tolist() if not df_v.empty else [], index=None, placeholder="Valitse...")
             if poistettava_v:
-                v_id = int(poistettava_v.split(" | ").replace("ID ", ""))
+                v_id = int(poistettava_v.split(" | ")[0].replace("ID ", ""))
                 if st.button("Kyllä, poista valmennus", type="primary", use_container_width=True):
                     suorita_sql("DELETE FROM valmennukset WHERE id = %s", (v_id,), commit=True)
                     paivita_valikot()
                     st.rerun()
         else:
             st.info("Ei valmennuksia valitulla aikavälillä.")
-
 elif valittu_sivu == "Asiakasrekisteri":
     st.title("👥 Asiakasrekisteri (Pilviversio)")
     s1, s2 = st.columns(2)
@@ -422,8 +417,8 @@ elif valittu_sivu == "Asiakasrekisteri":
                     for osa in str(r_v.get("pelaajahinta", "")).split(","):
                         if valittu_haku_pelaaja in osa and ":" in osa:
                             try:
-                                h_luku = float(osa.split(":").replace("€", "").strip())
-                                pelaajan_kokonaissumma += h_luku
+                                h_raaka = osa.split(":").replace("€", "").replace(" ", "").strip()
+                                pelaajan_kokonaissumma += float(h_raaka) if h_raaka else 0.0
                             except: pass
                     pelaajan_tunnit.append({"Päivä": r_v.get("paivamaara"), "Aika": r_v.get("aika"), "Klubi": r_v.get("klubi")})
                     
@@ -457,7 +452,7 @@ elif valittu_sivu == "Asiakasrekisteri":
                 paivita_valikot()
                 st.rerun()
         else:
-            st.info("Asiakasrekisteri on vielä tyhjä. Lisää ensimmäinen pelaaja vasemmalta.")
+            st.info("Asiakasregisteri on vielä tyhjä. Lisää ensimmäinen pelaaja vasemmalta.")
 
 elif valittu_sivu == "Klubit":
     st.title("🏢 Klubit")
