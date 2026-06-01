@@ -35,13 +35,21 @@ if not st.session_state.get("authenticated"):
             st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
 
+# --- VAIHE 2: SUPABASE-PILVIYHTEYDEN CONFIGURAATIO ---
+# Luetaan avaimet turvallisesti Streamlit Cloudin Advanced Settings (Secrets) -laatikosta
 if "secrets" in st.secrets:
-    SUPABASE_URL = st.secrets["secrets"]["SUPABASE_URL"]
+    RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
 else:
-    SUPABASE_URL = "https://supabase.co"
+    # Jos ajat koodia paikallisesti koneella, käytetään näitä varalla
+    RAW_URL = "https://supabase.co"
     SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
 
+# POMMINVARMA OSOITTEEN SIISTIMINEN:
+# Poistetaan mahdolliset vino- ja takaviivat sekä rest/v1-päätteet, jotta pohja on aina puhdas
+SUPABASE_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
+
+# Suojatut otsikkotiedot pilviasiointia varten
 HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -49,7 +57,6 @@ HEADERS = {
     "Prefer": "return=representation"
 }
 
-# KORJATTU FUNKTIO: Haetaan tuplen toinen arvo [1] eli kuukauden päivien määrä integerinä
 def kuluva_kuukausi_valit():
     tana_an = date.today()
     eka_paiva = date(tana_an.year, tana_an.month, 1)
@@ -61,15 +68,14 @@ def laske_kesto(aika_str):
     try:
         osat = aika_str.replace(" ", "").split("-")
         if len(osat) == 2:
-            t1 = datetime.strptime(osat, "%H:%M")
-            t2 = datetime.strptime(osat, "%H:%M")
+            t1 = datetime.strptime(osat[0], "%H:%M")
+            t2 = datetime.strptime(osat[1], "%H:%M")
             erotus = (t2 - t1).total_seconds() / 60
             return int(erotus) if erotus > 0 else 0
     except: return 0
     return 0
 
-# NOPEUTETTU TIEDONHAKU: Lisätään Streamlitin välimuisti
-@st.cache_data(ttl=60) # Pitää tiedot muistissa 60 sekuntia, ellet tee muutoksia
+# Pakotetaan tiedonhakuun aina täydellinen, puhdas polku
 def hae_pilvestä(taulu_nimi, parametri_str=""):
     try:
         url = f"{SUPABASE_URL}/rest/v1/{taulu_nimi}{parametri_str}"
