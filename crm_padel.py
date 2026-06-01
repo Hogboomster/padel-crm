@@ -1,7 +1,7 @@
 import sys
 from types import ModuleType
 
-# 1. PYTHON 3.14 VALEMODUULIT
+# 1. PYTHON 3.14 VALEMODUULIT (Estetään pyiceberg-kaatuminen)
 if 'pyiceberg' not in sys.modules:
     mock_iceberg = ModuleType('pyiceberg')
     mock_catalog = ModuleType('pyiceberg.catalog')
@@ -19,7 +19,7 @@ import calendar
 import plotly.express as px
 import requests
 
-# --- VAIHE 1: SALASANASUOJAUS ---
+# --- SALASANASUOJAUS ---
 if not st.session_state.get("authenticated"):
     st.title("🔒 Padel CRM - Kirjaudu sisään")
     kayttajatunnus = st.text_input("Käyttäjätunnus")
@@ -33,18 +33,17 @@ if not st.session_state.get("authenticated"):
             st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
 
-# --- VAIHE 2: SUPABASE CONFIGURAATIO ---
-# Pakotetaan oikeat avaimet ja puhdas URL suoraan käyttöön, jos secrets kenkkuilee
-RAW_URL = "https://supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
-
+# --- SUPABASE CONFIGURAATIO ---
 if "secrets" in st.secrets and "SUPABASE_URL" in st.secrets["secrets"]:
     RAW_URL = st.secrets["secrets"]["SUPABASE_URL"]
-if "secrets" in st.secrets and "SUPABASE_KEY" in st.secrets["secrets"]:
     SUPABASE_KEY = st.secrets["secrets"]["SUPABASE_KEY"]
+else:
+    RAW_URL = "https://supabase.co"
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bXpka3Jjc3pwc2lnZXhpemFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgyNzYsImV4cCI6MjA5NTg4NDI3Nn0.lDut-78b6bhA2anQeyy4Yx-5wblNOMCtfP3NbYV7dTg"
 
-# Varmistetaan että osoitteen loppuun tulee tasan tarkkaan oikea polku
+# Siistitään osoite kaikista mahdollisista vinoviivoista ja rest-liitteistä automaattisesti
 PUHDAS_URL = RAW_URL.replace("/rest/v1", "").replace("/rest/v1/", "").rstrip("/")
+# Hitsataan pomminvarma, puhdas rajapintapolku, jota KAIKKI sivut käyttävät
 API_URL = f"{PUHDAS_URL}/rest/v1"
 
 HEADERS = {
@@ -57,7 +56,8 @@ HEADERS = {
 def kuluva_kuukausi_valit():
     tana_an = date.today()
     eka_paiva = date(tana_an.year, tana_an.month, 1)
-    paivien_maara = calendar.monthrange(tana_an.year, tana_an.month)[1] # KORJATTU INDEKSI: poimitaan vain päivien määrä tuplesta
+    res_tuple = calendar.monthrange(tana_an.year, tana_an.month)
+    paivien_maara = int(res_tuple[1]) # Poimitaan varmasti pelkkä päivien lukumäärä numerona
     vika_paiva = date(tana_an.year, tana_an.month, paivien_maara)
     return eka_paiva, vika_paiva
 
@@ -95,7 +95,6 @@ if st.sidebar.button("🔒 Kirjaudu ulos"):
     st.rerun()
 
 valittu_sivu = st.sidebar.radio("Navigointi:", ["Etusivu", "Valmennukset", "Asiakasrekisteri", "Klubit", "Tulot", "Kulut"])
-
 if valittu_sivu == "Etusivu":
     st.title("🏠 Ohjausnäkymä - Etusivu")
     
@@ -198,7 +197,7 @@ elif valittu_sivu == "Valmennukset":
         if v_klubi:
             try:
                 klubi_data = hae_pilvestä("klubit", f"?nimi=eq.{v_klubi}")
-                if klubi_data:
+                if klubi_data and len(klubi_data) > 0:
                     hinnat_db = klubi_data[0]
                     alku_tunti = int(alku_valinta.split(":")[0])
                     if viikonpaiva >= 5:
@@ -261,7 +260,7 @@ elif valittu_sivu == "Valmennukset":
                 }
                 url = f"{API_URL}/valmennukset"
                 vastaus = requests.post(url, headers=HEADERS, json=uusi_valmennus)
-                if vastaus.status_code in [200, 201]:
+                if vastaus.status_code == 201:
                     st.success("Tallennettu pilveen!")
                     st.rerun()
                 else: st.error(f"Tallennus epäonnistui: {vastaus.text}")
@@ -492,7 +491,6 @@ elif valittu_sivu == "Klubit":
                 requests.delete(url, headers=HEADERS)
                 paivita_valikot()
                 st.rerun()
-
 elif valittu_sivu == "Tulot":
     st.title("💰 Tulojen seuranta (Toteutuneet maksut)")
     t_alku, t_loppu = kuluva_kuukausi_valit()
@@ -513,8 +511,10 @@ elif valittu_sivu == "Tulot":
                 pvm_t_str = t_pvm.strftime("%Y-%m-%d")
                 uusi_tulo = {"maksaja": t_maksaja, "maksupvm": pvm_t_str, "summa": float(t_summa), "maksutapa": t_tapa}
                 url = f"{API_URL}/manuaaliset_tulot"
-                requests.post(url, headers=HEADERS, json=uusi_tulo)
-                st.success("Tulo kirjattu onnistuneesti!"); st.rerun()
+                vastaus = requests.post(url, headers=HEADERS, json=uusi_tulo)
+                if vastaus.status_code == 201:
+                    st.success("Tulo kirjattu onnistuneesti!")
+                    st.rerun()
         with s2:
             st.subheader("📝 Selaa ja muokkaa toteutuneita tuloja")
             if not df_tulot.empty:
@@ -568,8 +568,9 @@ elif valittu_sivu == "Kulut":
                 pvm_k_str = k_pvm.strftime("%Y-%m-%d")
                 uusi_kulu = {"paivamaara": pvm_k_str, "selite": k_selite, "kategoria": k_kat, "summa": float(k_summa)}
                 url = f"{API_URL}/manuaaliset_kulut"
-                requests.post(url, headers=HEADERS, json=uusi_kulu)
-                st.success("Kulu tallennettu!"); st.rerun()
+                vastaus = requests.post(url, headers=HEADERS, json=uusi_kulu)
+                if vastaus.status_code == 201:
+                    st.success("Kulu tallennettu!"); st.rerun()
         with s2:
             st.subheader("📝 Selaa ja muokkaa muita kuluja")
             if not df_omat_kulut.empty:
