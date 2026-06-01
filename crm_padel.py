@@ -350,9 +350,10 @@ elif valittu_sivu == "Valmennukset":
                     requests.delete(url, headers=HEADERS)
                     st.rerun()
         else: st.info("Ei valmennuksia valitulla aikavälillä.")
-elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
+elif valittu_sivu == "Asiakasrekisteri":
     st.title("👥 Asiakasrekisteri (Pilviversio)")
     s1, s2 = st.columns(2)
+    
     with s1:
         st.subheader("➕ Lisää uusi asiakas & Kenttäpassi")
         n = st.text_input("Nimi")
@@ -371,7 +372,7 @@ elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
                 p_alku = st.date_input("Alku", date.today()).strftime("%Y-%m-%d")
                 p_loppu = st.date_input("Loppu", date.today()).strftime("%Y-%m-%d")
                 
-                if st.button("Tallenna pelaaja", use_container_width=True):
+        if st.button("Tallenna pelaaja", use_container_width=True):
             if n:
                 uusi_asiakas = {
                     "nimi": n, "puhelin": p, "sahkoposti": e, "kommentit": k, 
@@ -380,9 +381,8 @@ elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
                 url = f"{API_URL}/valmennettavat"
                 vastaus = requests.post(url, headers=HEADERS, json=uusi_asiakas)
                 
-                # KORJATTU KOHTA: Tarkistetaan oikea HTTP-statuskoodi 201 (Luotu)
                 if vastaus.status_code == 201:
-                    paivita_valikot()  # Tyhjennetään nopea välimuisti lennosta
+                    paivita_valikot()
                     st.success(f"Pelaaja {n} tallennettu onnistuneesti pilveen!")
                     st.rerun()
                 else:
@@ -404,6 +404,7 @@ elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
             df_kaikki_v["pvm_dt"] = pd.to_datetime(df_kaikki_v["paivamaara"]).dt.date
             df_suodatettu = df_kaikki_v[(df_kaikki_v["pvm_dt"] >= historia_alku) & (df_kaikki_v["pvm_dt"] <= historia_loppu)]
             pelaajan_tunnit, pelaajan_kokonaissumma = [], 0.0
+            
             for _, r_v in df_suodatettu.iterrows():
                 if valittu_haku_pelaaja in str(r_v.get("pelaajat", "")) or valittu_haku_pelaaja in str(r_v.get("tuuraustiedot", "")):
                     for osa in str(r_v.get("pelaajahinta", "")).split(","):
@@ -413,18 +414,22 @@ elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
                                 pelaajan_kokonaissumma += h_luku
                             except: pass
                     pelaajan_tunnit.append({"Päivä": r_v.get("paivamaara"), "Aika": r_v.get("aika"), "Klubi": r_v.get("klubi")})
+                    
             if pelaajan_tunnit:
                 st.metric(f"{valittu_haku_pelaaja} - Maksut yhteensä", f"{pelaajan_kokonaissumma:.2f} €")
                 st.dataframe(pd.DataFrame(pelaajan_tunnit), use_container_width=True, hide_index=True)
-            else: st.info("Ei tunteja tällä aikavälillä.")
+            else:
+                st.info("Ei tunteja tällä aikavälillä.")
             
     with s2:
         st.subheader("📝 Muokkaa ja poista asiakkaita")
         asiakkaat_data = hae_pilvestä("valmennettavat")
         df_a = pd.DataFrame(asiakkaat_data)
+        
         if not df_a.empty:
             df_a = df_a[["id", "nimi", "puhelin", "sahkoposti", "kommentit", "on_kenttapassi", "passi_alku", "passi_loppu"]]
             paivitetyt_asiakkaat = st.data_editor(df_a, use_container_width=True, hide_index=True, column_config={"id": None}, key="a_editor")
+            
             if st.session_state.a_editor["edited_rows"]:
                 for r_idx, muutokset in st.session_state.a_editor["edited_rows"].items():
                     t_id = int(df_a.iloc[r_idx]["id"])
@@ -433,13 +438,15 @@ elif valittu_sivu == "Asiakasregisteri" or valittu_sivu == "Asiakasrekisteri":
                 paivita_valikot()
                 st.success("Muutokset päivitetty pilveen!")
                 st.rerun()
+                
             p_pelaaja = st.selectbox("Valitse poistettava pelaaja:", df_a["nimi"].tolist(), index=None, placeholder="Valitse nimi...")
-            if p_pelaaja and st.button("Vahvista poisto pysyvästi", type="primary", use_container_width=True):
+            if p_pelaaja and st.button("Vahvista poisto pysyvästi", use_container_width=True):
                 url = f"{API_URL}/valmennettavat?nimi=eq.{p_pelaaja}"
                 requests.delete(url, headers=HEADERS)
                 paivita_valikot()
                 st.rerun()
-        else: st.info("Asiakasrekisteri on vielä tyhjä.")
+        else:
+            st.info("Asiakasrekisteri on vielä tyhjä. Lisää ensimmäinen pelaaja vasemmalta.")
 
 elif valittu_sivu == "Klubit":
     st.title("🏢 Klubit")
@@ -450,18 +457,19 @@ elif valittu_sivu == "Klubit":
         kp = st.number_input("Päivähinta (€)", min_value=0.0)
         km = st.number_input("PrimeHinta (€)", min_value=0.0)
         kv = st.number_input("VklppuHinta (€)", min_value=0.0)
-               if st.button("Tallenna klubi", use_container_width=True) and kn:
-            uusi_k = {"nimi": kn, "paivahinta": kp, "primehinta": km, "vklppuhinta": kv}
-            url = f"{API_URL}/klubit"
-            vastaus = requests.post(url, headers=HEADERS, json=uusi_k)
-            
-            # KORJATTU KOHTA: Tarkistetaan oikea HTTP-statuskoodi 201
-            if vastaus.status_code == 201:
-                paivita_valikot()
-                st.success(f"Klubi {kn} tallennettu onnistuneesti!")
-                st.rerun()
-            else: 
-                st.error(f"Virhe: {vastaus.text}")
+        if st.button("Tallenna klubi", use_container_width=True):
+            if kn:
+                uusi_k = {"nimi": kn, "paivahinta": kp, "primehinta": km, "vklppuhinta": kv}
+                url = f"{API_URL}/klubit"
+                vastaus = requests.post(url, headers=HEADERS, json=uusi_k)
+                if vastaus.status_code == 201:
+                    paivita_valikot()
+                    st.success(f"Klubi {kn} tallennettu onnistuneesti!")
+                    st.rerun()
+                else: 
+                    st.error(f"Virhe: {vastaus.text}")
+            else:
+                st.error("Anna klubin nimi.")
     with s2:
         st.subheader("📝 Selaa klubeja")
         klubit_data = hae_pilvestä("klubit")
@@ -477,11 +485,12 @@ elif valittu_sivu == "Klubit":
                 paivita_valikot()
                 st.rerun()
             p_klubi = st.selectbox("Poista klubi:", df_k["nimi"].tolist(), index=None)
-            if p_klubi and st.button("Vahvista klubin poisto", type="primary"):
+            if p_klubi and st.button("Vahvista klubin poisto"):
                 url = f"{API_URL}/klubit?nimi=eq.{p_klubi}"
                 requests.delete(url, headers=HEADERS)
                 paivita_valikot()
                 st.rerun()
+
 elif valittu_sivu == "Tulot":
     st.title("💰 Tulojen seuranta (Toteutuneet maksut)")
     t_alku, t_loppu = kuluva_kuukausi_valit()
